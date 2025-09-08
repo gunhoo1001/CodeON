@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.spring.app.model.SurveyDAO">
+
+  <!-- Survey 기본 매핑 -->
+  <resultMap id="SurveyMap" type="com.spring.app.domain.SurveyDTO">
+    <id     property="surveyId"       column="SURVEY_ID"/>
+    <result property="title"          column="TITLE"/>
+    <result property="ownerMemberSeq" column="OWNER_MEMBER_SEQ"/>
+    <result property="startDate"      column="START_DATE"     jdbcType="DATE"/>
+    <result property="endDate"        column="END_DATE"       jdbcType="DATE"/>
+    <!-- 타임존 오류 회피: 문자열로 받는다 -->
+    <result property="regDate"        column="REG_DATE_STR"/>
+    <result property="statusCode"     column="STATUS_CODE"/>
+    <result property="questionsJson"  column="QUESTIONS_JSON" jdbcType="CLOB"/>
+  </resultMap>
+
+  <!-- INSERT: SEQ_SURVEY.NEXTVAL 선채번 -->
+  <insert id="insertSurvey" parameterType="com.spring.app.domain.SurveyDTO">
+    <selectKey keyProperty="surveyId" resultType="long" order="BEFORE">
+      SELECT SEQ_SURVEY.NEXTVAL FROM DUAL
+    </selectKey>
+    INSERT INTO TBL_SURVEY (
+      SURVEY_ID, TITLE, OWNER_MEMBER_SEQ, START_DATE, END_DATE, STATUS_CODE, QUESTIONS_JSON
+    ) VALUES (
+      #{surveyId}, #{title}, #{ownerMemberSeq},
+      #{startDate, jdbcType=DATE}, #{endDate, jdbcType=DATE},
+      COALESCE(#{statusCode}, 'OPEN'),
+      #{questionsJson, jdbcType=CLOB}
+    )
+  </insert>
+
+  <!-- 대상 일괄 INSERT -->
+  <insert id="insertSurveyTargets">
+    INSERT INTO TBL_SURVEY_TARGET (TARGET_ID, SURVEY_ID, TARGET_TYPE, DEPT_SEQ, MEMBER_SEQ)
+    SELECT SEQ_SURVEY_TARGET.NEXTVAL, #{list[0].surveyId}, #{list[0].targetType}, #{list[0].deptSeq}, #{list[0].memberSeq}
+    FROM DUAL
+    <if test="list.size() > 1">
+      UNION ALL
+      <foreach collection="list" item="x" index="i" separator=" UNION ALL " open="" close="">
+        SELECT SEQ_SURVEY_TARGET.NEXTVAL, #{x.surveyId}, #{x.targetType}, #{x.deptSeq}, #{x.memberSeq} FROM DUAL
+      </foreach>
+    </if>
+  </insert>
+
+  <!-- 가시성 목록 (소유자 or 대상자) -->
+  <select id="selectSurveysVisible" resultMap="SurveyMap">
+    SELECT
+      s.SURVEY_ID, s.TITLE, s.OWNER_MEMBER_SEQ,
+      s.START_DATE, s.END_DATE,
+      TO_CHAR(s.REG_DATE,'YYYY-MM-DD"T"HH24:MI:SS.FF3') AS REG_DATE_STR,
+      CASE
+        WHEN s.STATUS_CODE = 'CLOSED' THEN 'CLOSED'                
+        WHEN TRUNC(SYSDATE) &lt; TRUNC(s.START_DATE) THEN 'UPCOMING'  
+        WHEN TRUNC(SYSDATE) &gt; TRUNC(s.END_DATE)   THEN 'CLOSED'    
+        ELSE 'OPEN'                                               
+      END AS STATUS_CODE,
+      s.QUESTIONS_JSON
+    FROM TBL_SURVEY s
+    WHERE
+      ( #{memberSeq} = s.OWNER_MEMBER_SEQ
+        OR EXISTS (
+          SELECT 1 FROM TBL_SURVEY_TARGET t
+          WHERE t.SURVEY_ID = s.SURVEY_ID
+            AND (
+                 t.TARGET_TYPE = 'ALL'
+              OR (t.TARGET_TYPE = 'DEPT' AND t.DEPT_SEQ = #{deptSeq})
+            )
+        )
+      )
+      <if test="status != null and status != ''">
+        AND (
+          CASE
+            WHEN s.STATUS_CODE = 'CLOSED' THEN 'CLOSED'
+            WHEN TRUNC(SYSDATE) &lt; TRUNC(s.START_DATE) THEN 'UPCOMING'
+            WHEN TRUNC(SYSDATE) &gt; TRUNC(s.END_DATE)   THEN 'CLOSED'
+            ELSE 'OPEN'
+          END
+        ) = #{status}
+      </if>
+    ORDER BY s.REG_DATE DESC
+  </select>
+
+  <select id="selectSurveyById" resultMap="SurveyMap">
+    SELECT
+      s.SURVEY_ID, s.TITLE, s.OWNER_MEMBER_SEQ,
+      s.START_DATE, s.END_DATE,
+      TO_CHAR(s.REG_DATE,'YYYY-MM-DD"T"HH24:MI:SS.FF3') AS REG_DATE_STR,
+      CASE
+        WHEN s.STATUS_CODE = 'CLOSED' THEN 'CLOSED'
+        WHEN TRUNC(SYSDATE) &lt; TRUNC(s.START_DATE) THEN 'UPCOMING'
+        WHEN TRUNC(SYSDATE) &gt; TRUNC(s.END_DATE)   THEN 'CLOSED'
+        ELSE 'OPEN'
+      END AS STATUS_CODE,
+      s.QUESTIONS_JSON
+    FROM TBL_SURVEY s
+    WHERE s.SURVEY_ID = #{surveyId}
+  </select>
+
+  <select id="selectSurveyTargets" resultType="com.spring.app.domain.SurveyTargetDTO">
+    SELECT TARGET_ID AS targetId,
+           SURVEY_ID AS surveyId,
+           TARGET_TYPE AS targetType,
+           DEPT_SEQ AS deptSeq,
+           MEMBER_SEQ AS memberSeq
+    FROM TBL_SURVEY_TARGET
+    WHERE SURVEY_ID = #{surveyId}
+  </select>
+
+  <select id="canViewSurvey" resultType="int">
+    SELECT CASE
+             WHEN s.OWNER_MEMBER_SEQ = #{memberSeq} THEN 1
+             WHEN EXISTS (
+               SELECT 1 FROM TBL_SURVEY_TARGET t
+               WHERE t.SURVEY_ID = s.SURVEY_ID
+                 AND ( t.TARGET_TYPE = 'ALL'
+                       OR (t.TARGET_TYPE='DEPT' AND t.DEPT_SEQ = #{deptSeq}) )
+             ) THEN 1
+             ELSE 0
+           END AS CAN_VIEW
+    FROM TBL_SURVEY s
+    WHERE s.SURVEY_ID = #{surveyId}
+  </select>
+
+  <!-- ===== 응답/통계 ===== -->
+
+  <insert id="insertResponse" parameterType="com.spring.app.domain.SurveyRespDTO">
+    <selectKey keyProperty="respId" resultType="long" order="BEFORE">
+      SELECT SEQ_SURVEY_RESP.NEXTVAL FROM DUAL
+    </selectKey>
+    INSERT INTO TBL_SURVEY_RESP (
+      RESP_ID, SURVEY_ID, RESP_MEMBER_SEQ, ANSWERS_JSON, RESP_DATE
+    ) VALUES (
+      #{respId}, #{surveyId}, #{respMemberSeq},
+      #{answersJson, jdbcType=CLOB}, SYSTIMESTAMP
+    )
+  </insert>
+
+  <select id="existsResponseByMember" resultType="int">
+    SELECT COUNT(1)
+    FROM TBL_SURVEY_RESP
+    WHERE SURVEY_ID = #{surveyId}
+      AND RESP_MEMBER_SEQ = #{memberSeq}
+  </select>
+
+  <select id="selectAnswersJsonList" resultType="string">
+    SELECT ANSWERS_JSON
+    FROM TBL_SURVEY_RESP
+    WHERE SURVEY_ID = #{surveyId}
+  </select>
+
+  <!-- ▼ [추가] 설문 대상자의 전체 인원수(ALL / DEPT / MEMBER 조합 중복 제거) -->
+  <select id="countEligibleMembers" resultType="int" parameterType="long">
+	  SELECT COUNT(*) AS CNT
+	  FROM (
+	    /* ALL이 하나라도 있으면 전체 사원 */
+	    SELECT m.MEMBER_SEQ
+	      FROM TBL_MEMBER m
+	     WHERE EXISTS (
+	            SELECT 1 FROM TBL_SURVEY_TARGET t
+	             WHERE t.SURVEY_ID = #{surveyId}
+	               AND t.TARGET_TYPE = 'ALL'
+	          )
+	    UNION
+	    /* 부서 대상 */
+	    SELECT m.MEMBER_SEQ
+	      FROM TBL_MEMBER m
+	      JOIN TBL_SURVEY_TARGET t
+	        ON t.SURVEY_ID = #{surveyId}
+	       AND t.TARGET_TYPE = 'DEPT'
+	       AND m.FK_DEPARTMENT_SEQ = t.DEPT_SEQ
+	    UNION
+	    /* 개별 멤버 대상 */
+	    SELECT t.MEMBER_SEQ
+	      FROM TBL_SURVEY_TARGET t
+	     WHERE t.SURVEY_ID = #{surveyId}
+	       AND t.TARGET_TYPE = 'MEMBER'
+	  )
+	</select>
+	
+	<!-- ▼ [추가] 설문 응답자 수 -->
+	<select id="countResponsesBySurvey" resultType="int" parameterType="long">
+	  SELECT COUNT(*) FROM TBL_SURVEY_RESP WHERE SURVEY_ID = #{surveyId}
+	</select>
+
+</mapper>

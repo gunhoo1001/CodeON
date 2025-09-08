@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ==== mapper 기본설정 ==== -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- ==== 루트 엘리먼트 & 네임스페이스 설정(프로젝트 전체내에서 유일해야 한다.) ==== -->
+<mapper namespace="calendar">
+
+
+    <!-- ==== 대분류 전체 조회 ==== -->
+    <select id="selectAllBigCategories" resultType="com.spring.app.calendar.domain.BigCategoryDTO">
+	    SELECT 
+	        big_category_seq AS bigCategorySeq,
+	        big_category_name AS bigCategoryName
+	    FROM tbl_calendar_big_category
+	    WHERE big_category_seq != 4
+	    ORDER BY big_category_seq
+	</select>
+
+
+    <!-- ==== 소분류 전체 조회 ==== -->
+    <select id="selectAllSmallCategories" resultType="com.spring.app.calendar.domain.SmallCategoryDTO">
+        SELECT
+            small_category_seq AS smallCategorySeq,
+            fk_big_category_seq AS fkBigCategorySeq,
+            fk_member_seq AS fkMemberSeq,
+            small_category_name AS smallCategoryName
+        FROM tbl_calendar_small_category 
+        WHERE small_category_seq !=7
+        ORDER BY small_category_seq
+    </select>
+
+    <!-- 일정 등록 -->
+    <insert id="addCalendarEvent" parameterType="map">
+        INSERT INTO TBL_CALENDAR (
+            calendar_seq,
+            fk_member_seq,
+            fk_big_category_seq,
+            fk_small_category_seq,
+            calendar_start,
+            calendar_end,
+            calendar_name,
+            calendar_content,
+            calendar_color,
+            calendar_location,
+            calendar_user
+        )
+        VALUES (
+            SEQ_TBL_CALENDAR.nextval,
+            #{memberSeq, jdbcType=VARCHAR},
+            #{bigCategorySeq, jdbcType=NUMERIC},
+            #{smallCategorySeq, jdbcType=NUMERIC},
+            #{calendarStart, jdbcType=TIMESTAMP},
+            #{calendarEnd, jdbcType=TIMESTAMP},
+            #{title, jdbcType=VARCHAR},
+            #{content, jdbcType=VARCHAR},
+            #{calendarType, jdbcType=VARCHAR},
+            #{calendarLocation, jdbcType=VARCHAR},
+            #{calendarUser, jdbcType=NUMERIC}  
+        )
+    </insert>
+
+
+    <!-- ==== 대분류 추가 ==== -->
+    <insert id="insertBigCategory" parameterType="com.spring.app.calendar.domain.BigCategoryDTO">
+        INSERT INTO tbl_calendar_big_category (
+            big_category_seq,
+            big_category_name
+        ) VALUES (
+            SEQ_TBL_BIG_CATEGORY.nextval,
+            #{bigCategoryName, jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <!-- ==== 소분류 추가 ==== -->
+    <insert id="insertSmallCategory" parameterType="com.spring.app.calendar.domain.SmallCategoryDTO">
+        INSERT INTO tbl_calendar_small_category (
+            small_category_seq,
+            fk_big_category_seq,
+            fk_member_seq,
+            small_category_name
+        ) VALUES (
+            SEQ_TBL_SMALL_CATEGORY.nextval,
+            #{fkBigCategorySeq, jdbcType=NUMERIC},
+            #{fkMemberSeq, jdbcType=NUMERIC},
+            #{smallCategoryName, jdbcType=VARCHAR}
+        )
+    </insert>
+	
+	 <!-- 개인일정조회 -->
+	 <select id="selectCalendar" parameterType="string" resultType="com.spring.app.calendar.domain.CalendarAjaxDTO">
+	    SELECT
+	        c.calendar_seq          AS calendarSeq,
+	        c.calendar_name         AS calendarName,
+	        TO_CHAR(c.calendar_start, 'YYYY-MM-DD"T"HH24:MI:SS') AS calendarStart,
+	        TO_CHAR(c.calendar_end,   'YYYY-MM-DD"T"HH24:MI:SS') AS calendarEnd,
+	        c.calendar_color        AS calendarColor,
+	        bc.big_category_name    AS calendarType,
+	        c.calendar_location     AS calendarLocation,
+	        c.calendar_content      AS calendarContent,
+	        c.calendar_user         AS calendarUser
+	    FROM tbl_calendar c
+	    JOIN tbl_calendar_big_category bc
+	      ON c.fk_big_category_seq = bc.big_category_seq
+	    WHERE c.calendar_user = #{calendarUser}
+	      AND bc.big_category_seq = 3   
+	    ORDER BY c.calendar_start ASC
+	</select>
+
+	
+	<!-- 오늘 사내 일정 조회 -->
+	<select id="getTodayCompanyEvents"  parameterType="java.time.LocalDate" resultType="com.spring.app.calendar.domain.CalendarAjaxDTO">
+	    SELECT
+	        c.calendar_seq          AS calendarSeq,
+	        c.calendar_name         AS calendarName,
+	        TO_CHAR(c.calendar_start, 'YYYY-MM-DD"T"HH24:MI:SS') AS calendarStart,
+	        TO_CHAR(c.calendar_end,   'YYYY-MM-DD"T"HH24:MI:SS') AS calendarEnd,
+	        c.calendar_color        AS calendarColor,
+	        bc.big_category_name    AS calendarType,
+	        c.calendar_location     AS calendarLocation,
+	        c.calendar_content      AS calendarContent,
+	        c.calendar_user         AS calendarUser
+	    FROM tbl_calendar c
+	    JOIN tbl_calendar_big_category bc
+	      ON c.fk_big_category_seq = bc.big_category_seq
+	    WHERE bc.big_category_seq = 1
+	      AND TRUNC(c.calendar_start) = #{today}
+	    ORDER BY c.calendar_start ASC
+	</select>
+
+
+	
+	<!-- ==== 부서 일정 조회 ==== -->
+    <select id="selectDeptCalendar" parameterType="int" resultType="com.spring.app.calendar.domain.CalendarAjaxDTO">
+	    SELECT
+	        c.calendar_seq       AS calendarSeq,
+	        c.calendar_name      AS calendarName,
+	        TO_CHAR(c.calendar_start, 'YYYY-MM-DD"T"HH24:MI:SS') AS calendarStart,
+	        TO_CHAR(c.calendar_end,   'YYYY-MM-DD"T"HH24:MI:SS') AS calendarEnd,
+	        c.calendar_color     AS calendarColor,
+	        bc.big_category_name AS calendarType,
+	        d.department_name    AS departmentName,   
+	        c.calendar_content   AS calendarContent,
+	        c.calendar_user      AS calendarUser
+	    FROM tbl_calendar c
+	    JOIN tbl_calendar_big_category bc
+	      ON c.fk_big_category_seq = bc.big_category_seq
+	    JOIN tbl_member m
+	      ON c.fk_member_seq = m.member_seq
+	    JOIN tbl_department d
+	      ON m.fk_department_seq = d.department_seq
+	    WHERE bc.big_category_seq = 2               
+	      AND m.fk_department_seq = #{fkDepartmentSeq}
+	    ORDER BY c.calendar_start ASC
+	</select>
+
+
+
+	<!-- ==== 사내 일정 조회 ==== -->
+	<select id="selectCompanyCalendar" resultType="com.spring.app.calendar.domain.CalendarAjaxDTO" parameterType="int">
+	    SELECT
+	        c.calendar_seq          AS calendarSeq,
+	        c.calendar_name         AS calendarName,
+	        TO_CHAR(c.calendar_start, 'YYYY-MM-DD"T"HH24:MI:SS') AS calendarStart,
+	        TO_CHAR(c.calendar_end,   'YYYY-MM-DD"T"HH24:MI:SS') AS calendarEnd,
+	        c.calendar_color        AS calendarColor,
+	        bc.big_category_name    AS calendarType,
+	        c.calendar_location     AS calendarLocation,
+	        c.calendar_content      AS calendarContent,
+	        c.calendar_user         AS calendarUser
+	    FROM tbl_calendar c
+	    JOIN tbl_calendar_big_category bc
+	      ON c.fk_big_category_seq = bc.big_category_seq
+	    WHERE bc.big_category_seq = 1 
+	    ORDER BY c.calendar_start ASC
+	</select>
+
+
+	<!-- 일정 상세보기 -->
+	<resultMap id="detailCalendar_Map" type="HashMap">
+	    <result property="calendarSeq"      column="CALENDAR_SEQ" 		javaType="string"/>
+	    <result property="calendarStart"    column="CALENDAR_START" 	javaType="string"/>
+	    <result property="calendarEnd"      column="CALENDAR_END" 		javaType="string"/>
+	    <result property="calendarName"     column="CALENDAR_NAME" 		javaType="string"/>
+	    <result property="calendarColor"    column="CALENDAR_COLOR" 	javaType="string"/>
+	    <result property="calendarType" 	column="CALENDAR_TYPE" 		javaType="string"/>
+	    <result property="calendarLocation" column="CALENDAR_LOCATION" 	javaType="string"/>
+	    <result property="calendarContent"  column="CALENDAR_CONTENT" 	javaType="string"/>
+	    <result property="memberName"       column="MEMBER_NAME" 		javaType="string"/>
+	    <result property="fkMemberSeq"     	column="FK_MEMBER_SEQ" 		javaType="string"/>
+	</resultMap>
+ 
+	<select id="detailCalendar" parameterType="int" resultMap="detailCalendar_Map">
+	    SELECT
+	        C.CALENDAR_SEQ,
+	        TO_CHAR(C.CALENDAR_START, 'yyyy-mm-dd hh24:mi') AS CALENDAR_START,
+	        TO_CHAR(C.CALENDAR_END, 'yyyy-mm-dd hh24:mi')   AS CALENDAR_END,
+	        C.CALENDAR_NAME,
+	        C.CALENDAR_COLOR,
+	        NVL(C.CALENDAR_LOCATION, '-') AS CALENDAR_LOCATION,
+	        NVL(C.CALENDAR_CONTENT, '')   AS CALENDAR_CONTENT,
+	        M.MEMBER_NAME,
+	        C.FK_MEMBER_SEQ,
+	        NVL(C.CALENDAR_TYPE, BC.BIG_CATEGORY_NAME) AS CALENDAR_TYPE  <!-- ✅ 캘린더 종류 이름 -->
+	    FROM TBL_CALENDAR C
+	    JOIN TBL_MEMBER M
+	      ON C.FK_MEMBER_SEQ = M.MEMBER_SEQ
+	    JOIN TBL_CALENDAR_BIG_CATEGORY BC
+	      ON C.FK_BIG_CATEGORY_SEQ = BC.BIG_CATEGORY_SEQ
+	    WHERE C.CALENDAR_SEQ = #{calendarSeq,jdbcType=INTEGER}
+	</select>
+
+	<!-- // 일정삭제하기 -->
+	<delete id="deleteCalendar" parameterType="String">
+		delete from tbl_calendar 
+		where calendar_seq = #{value}
+	</delete>
+
+
+	<!-- // 일정수정하기 -->
+	<update id="editCalendar_end" parameterType="com.spring.app.calendar.domain.CalendarDTO">
+	    UPDATE TBL_CALENDAR SET CALENDAR_NAME     = #{calendarName},
+						        CALENDAR_START    = TO_DATE(REPLACE(#{calendarStart}, 'T', ' '), 'YYYY-MM-DD HH24:MI'),
+						        CALENDAR_END      = TO_DATE(REPLACE(#{calendarEnd}, 'T', ' '), 'YYYY-MM-DD HH24:MI'),
+						        CALENDAR_COLOR    = #{calendarColor},
+						        CALENDAR_LOCATION = #{calendarLocation},
+						        CALENDAR_CONTENT  = #{calendarContent}
+	    WHERE CALENDAR_SEQ = #{calendarSeq}
+	</update>
+
+	
+
+
+	
+	
+
+</mapper>

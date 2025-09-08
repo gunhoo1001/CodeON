@@ -1,0 +1,161 @@
+plugins {
+	id 'java'
+	id 'war'
+	id 'org.springframework.boot' version '3.5.4'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.spring'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
+	compileOnly 'org.projectlombok:lombok'
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
+	annotationProcessor 'org.projectlombok:lombok'
+	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+	testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.4'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.4'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	
+	// JSON 관련 라이브러리 추가하기
+	// https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-json
+	//implementation 'org.springframework.boot:spring-boot-starter-json'
+	implementation 'org.springframework.boot:spring-boot-starter-json:3.5.3'
+	
+	// https://mvnrepository.com/artifact/org.json/json
+	implementation 'org.json:json:20250517'
+	
+	// https://mvnrepository.com/artifact/com.googlecode.json-simple/json-simple
+	implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+
+	// == JSTL 관련 추가 시작 ==
+	// https://mvnrepository.com/artifact/jakarta.servlet.jsp.jstl/jakarta.servlet.jsp.jstl-api
+	//implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api'
+	implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.2'
+	
+	// https://mvnrepository.com/artifact/jakarta.servlet/jakarta.servlet-api
+	//compileOnly 'jakarta.servlet:jakarta.servlet-api'
+	compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
+	
+	// https://mvnrepository.com/artifact/org.glassfish.web/jakarta.servlet.jsp.jstl
+	//implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl'
+	implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl:3.0.1'
+	// == JSTL 관련 추가 끝 ==
+	
+	// 내장 톰캣 관련(이것을 설정하지 않으면 경고 및 JSP가 실행되지 않음)
+	// https://mvnrepository.com/artifact/org.apache.tomcat.embed/tomcat-embed-jasper
+	//implementation 'org.apache.tomcat.embed:tomcat-embed-jasper'
+	implementation 'org.apache.tomcat.embed:tomcat-embed-jasper:10.1.42'
+	
+	// === Query DSL 에 필요한 것들 ===
+	// 1. SQL 쿼리를 자바코드로 생성해주는 것
+    implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
+    
+    // 2. QClass(쿼리클래스) 를 생성해주는 것
+    /*
+       QClass 란? QueryDSL이 Java 코드 기반으로 쿼리를 작성할 수 있게 해주는 핵심 클래스.
+       QClass를 사용하여 SQL 대신에 Java 코드로 쿼리를 작성한다.
+       Query DSL 은 엔티티 클래스를 기반으로 Q엔티티명 클래스를 자동생성 해준다.
+       예> 엔터티 클래스명이 Member.java 이라면 QMember.java 라는 클래스가 자동생성 된다. 
+    */
+    annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'
+    
+    // 3. Query DSL 코드생성에 필요한 것들
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    
+    // 4. Query DSL 코드생성에 필요한 것들
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+	/*
+	 아파치 POI(Apache POI)는 아파치 소프트웨어 재단에서 만든 라이브러리로서 마이크로소프트 오피스파일 포맷을 순수 자바 언어로서 읽고 쓰는 기능을 제공한다. 
+	 주로 워드, 엑셀, 파워포인트와 파일을 지원하며 최근의 오피스 포맷인 Office Open XML File Formats(OOXML, 즉 xml 기반의 *.docx, *.xlsx, *.pptx 등) 이나 아웃룩, 비지오, 퍼블리셔 등으로 지원 파일 포맷을 늘려가고 있다. 
+	 poi-ooxml은 excel 2007이후 버전이며 이때 schemas도 같이 porting을 해줘야 xlsx 파일을 읽어들인다. 
+	 poi는 excel 2007포함한 이전 버전이다.  
+	*/
+	// https://mvnrepository.com/artifact/org.apache.poi/poi
+	implementation 'org.apache.poi:poi:5.3.0'
+		
+	// https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml
+	implementation 'org.apache.poi:poi-ooxml:5.3.0'
+	
+	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+	
+	// Spring websocket dependency를 추가(#웹채팅관련1)
+	// https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-websocket
+	//implementation 'org.springframework.boot:spring-boot-starter-websocket'
+	implementation 'org.springframework.boot:spring-boot-starter-websocket:3.4.7'
+	
+	implementation 'com.google.code.gson:gson:2.10.1'
+    
+   /*
+    아파치 POI(Apache POI)는 아파치 소프트웨어 재단에서 만든 라이브러리로서 마이크로소프트 오피스파일 포맷을 순수 자바 언어로서 읽고 쓰는 기능을 제공한다. 
+    주로 워드, 엑셀, 파워포인트와 파일을 지원하며 최근의 오피스 포맷인 Office Open XML File Formats(OOXML, 즉 xml 기반의 *.docx, *.xlsx, *.pptx 등) 이나 아웃룩, 비지오, 퍼블리셔 등으로 지원 파일 포맷을 늘려가고 있다. 
+    poi-ooxml은 excel 2007이후 버전이며 이때 schemas도 같이 porting을 해줘야 xlsx 파일을 읽어들인다. 
+    poi는 excel 2007포함한 이전 버전이다.  
+   */
+   // https://mvnrepository.com/artifact/org.apache.poi/poi
+   implementation 'org.apache.poi:poi:5.3.0'
+      
+   // https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml
+   implementation 'org.apache.poi:poi-ooxml:5.3.0'
+   
+   implementation platform("org.springframework.ai:spring-ai-bom:1.0.0")
+   implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+// Java 컴파일러에게 파라미터 이름을 class 파일에 기록하라고 지시
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-parameters"
+}
+
+// === QClass 관련하여 설정하기 === 
+// QClass 파일이(Q엔티티명.java) 생성되는 경로 설정은 build/generated 를 권장함
+def generatedDir = file("$buildDir/generated/querydsl")  
+// buildDir은 Gradle의 기본 빌드 디렉토리 (예: build)를 가리키는 것이며, 그 하위에 generated/querydsl 이라는 경로를 덧붙인 상대 경로임.  
+
+// Java Compile Task 설정
+tasks.withType(JavaCompile).configureEach {
+    options.annotationProcessorGeneratedSourcesDirectory = generatedDir
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += generatedDir  // Query DSL 이 자동으로 만든 QClass 파일(Q엔티티명.java) 들도 자바소스 코드의 일부로 인식하도록 추가함
+        }
+    }
+}
+
+
+tasks.clean {
+    delete generatedDir 
+}
+/*
+  다시 build 하거나 clean 할 때 (프로젝트 초기화를 위해 bash 사용시 ./gradlew clean 을 하면 build 디렉토리가 삭제됨) 
+  위에서 생성한 QClass 생성경로 설정 폴더도 삭제함으로 QClass 파일들을 삭제함으로 깔끔하게 초기화 시켜줌
+*/

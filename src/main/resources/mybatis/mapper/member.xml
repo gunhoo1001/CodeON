@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ==== mapper 기본설정 ==== -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- SqlSessionTemplate(myBatis 3.0 이전 버전)을 사용하지 않는 Mapper Interface(myBatis 3.0 이상 버전 부터 사용가능함) 예제 ==== --> 
+<!--      매퍼.xml 파일이 DAO인터페이스를 구현하는 DAO클래스의 역할을 대신해준다. 
+          !!!!!! namespace 는 DAO인터페이스명으로 해야 한다. !!!!!!  --> 
+
+<mapper namespace="com.spring.app.model.MemberDAO">
+
+<resultMap type="HashMap" id="memberCntByDeptname_map">
+	<result property="department_name" column="department_name" javaType="String" />
+	<result property="cnt" column="cnt" javaType="String" />
+	<result property="percentage" column="percentage" javaType="String" />
+</resultMap>
+
+<select id="memberCntByDeptname" resultMap="memberCntByDeptname_map">
+	WITH
+	A AS
+	(SELECT department_name
+	      , COUNT(*) AS cnt
+	 FROM tbl_member E LEFT JOIN tbl_department D
+	 ON E.fk_department_seq = D.department_seq
+	 GROUP BY D.department_name)
+	,
+	B AS
+	(SELECT COUNT(*) AS totalcnt
+	 FROM tbl_member)
+	SELECT NVL(department_name, '부서없음') AS department_name, 
+	       cnt, 
+	       ROUND((cnt/totalcnt)*100, 2) AS percentage
+	FROM A CROSS JOIN B 
+	ORDER BY cnt DESC, A.department_name ASC
+</select>
+
+<resultMap type="HashMap" id="memberCntByGender_map">
+	<result property="gender" column="gender" javaType="String" />
+	<result property="cnt" column="cnt" javaType="String" />
+	<result property="percentage" column="percentage" javaType="String" />
+</resultMap>
+
+<select id="memberCntByGender" resultMap="memberCntByGender_map">
+	with
+	A as
+	(
+	select member_gender as gender, count(*) as cnt
+	from tbl_member
+	group by member_gender
+	)
+	,
+	B as
+	(
+	select count(*) as totalcnt
+	from tbl_member
+	)
+	select gender,
+	    cnt,
+	    ROUND((cnt/totalcnt)*100, 2) AS percentage
+	FROM A CROSS JOIN B
+	order by cnt desc
+</select>
+
+<!-- 입사연도별 인원/퍼센티지 -->
+ <select id="memberCntByHireYear" resultType="map">
+  SELECT 
+    TO_CHAR(member_hiredate,'YYYY') AS "hire_year",
+    COUNT(*) AS "cnt",
+    ROUND(COUNT(*) * 100 / SUM(COUNT(*)) OVER (), 2) AS "percentage"
+FROM TBL_MEMBER
+WHERE member_hiredate IS NOT NULL
+GROUP BY TO_CHAR(member_hiredate,'YYYY')
+ORDER BY "hire_year"
+</select>
+
+<select id="memberCntByHireYearGender" resultType="map">
+  SELECT 
+    TO_CHAR(member_hiredate,'YYYY') AS "hire_year",
+    member_gender AS "gender",
+    COUNT(*) AS "cnt"
+FROM TBL_MEMBER
+WHERE member_hiredate IS NOT NULL
+GROUP BY TO_CHAR(member_hiredate,'YYYY'), member_gender
+ORDER BY "hire_year", "gender"
+</select>
+
+
+<!-- 부서 직원 리스트  -->
+<select id="findByDept" parameterType="int" resultType="com.spring.app.domain.MemberDTO">
+    SELECT *
+    FROM tbl_member
+    WHERE fk_department_seq = #{fkDepartmentSeq}
+      AND member_email IS NOT NULL
+</select>
+
+</mapper>

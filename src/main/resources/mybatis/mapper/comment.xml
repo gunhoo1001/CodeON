@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="comment">
+
+    <!-- 댓글 등록 -->
+    <insert id="insertComment" parameterType="com.spring.app.board.domain.CommentDTO">
+        INSERT INTO tbl_comment (
+            comment_seq,
+            fk_board_seq,
+            fk_member_seq,
+            comment_content,
+            comment_regdate
+        ) VALUES (
+            seq_comment.NEXTVAL,
+            #{fkBoardSeq},
+            #{fkMemberSeq},
+            #{commentContent},
+            SYSDATE
+        )
+    </insert>
+
+    <!-- 댓글 목록 조회 -->
+    <select id="selectCommentList" parameterType="int" resultType="com.spring.app.board.domain.CommentDTO">
+        SELECT 
+            c.comment_seq       AS commentSeq,
+            c.fk_board_seq      AS fkBoardSeq,
+            c.fk_member_seq     AS fkMemberSeq,
+            m.member_name       AS memberName,   
+            c.comment_content   AS commentContent,
+            c.comment_regdate   AS commentRegdate
+        FROM tbl_comment c
+        JOIN tbl_member m ON c.fk_member_seq = m.member_seq
+        WHERE c.fk_board_seq = #{fkBoardSeq}
+        ORDER BY c.comment_seq DESC
+    </select>
+
+    <!-- ================== 대댓글 영역 ================== -->
+
+    <!-- 대댓글 등록 -->
+    <insert id="insertReply" parameterType="map">
+        INSERT INTO tbl_reply (
+            reply_seq,
+            fk_comment_seq,
+            fk_member_seq,
+            reply_content,
+            reply_regdate
+        ) VALUES (
+            seq_reply.NEXTVAL,
+            #{fkCommentSeq},
+            #{fkMemberSeq},
+            #{replyContent},
+            SYSDATE
+        )
+    </insert>
+
+    <!-- 대댓글 목록 조회 -->
+    <select id="selectReplyList" parameterType="int" resultType="com.spring.app.board.domain.ReplyDTO">
+        SELECT 
+            r.reply_seq         AS replySeq,
+            r.fk_comment_seq    AS fkCommentSeq,
+            r.fk_member_seq     AS fkMemberSeq,
+            m.member_name       AS memberName,
+            r.reply_content     AS replyContent,
+            r.reply_regdate     AS replyRegdate
+        FROM tbl_reply r
+        JOIN tbl_member m ON r.fk_member_seq = m.member_seq
+        WHERE r.fk_comment_seq = #{parentCommentSeq}
+        ORDER BY r.reply_seq ASC
+    </select>
+  <!-- 추천 추가 -->
+    <insert id="insertRecommend" parameterType="map">
+        INSERT INTO tbl_recommend (recommend_seq, fk_board_seq, fk_member_seq)
+        VALUES (seq_recommend.nextval, #{fkBoardSeq}, #{fkMemberSeq})
+    </insert>
+
+<!-- 추천 취소 -->
+<delete id="deleteRecommend" parameterType="map">
+    DELETE FROM tbl_recommend
+    WHERE fk_board_seq = #{fkBoardSeq}
+      AND fk_member_seq = #{fkMemberSeq}
+</delete>
+
+<!-- 추천 여부 확인 -->
+<select id="existsRecommend" parameterType="map" resultType="int">
+    SELECT COUNT(*) 
+    FROM tbl_recommend
+    WHERE fk_board_seq = #{fkBoardSeq}
+      AND fk_member_seq = #{fkMemberSeq}
+</select>
+
+
+    <!-- 추천 수 조회 -->
+    <select id="selectRecommendCount" parameterType="int" resultType="int">
+        SELECT COUNT(*) 
+        FROM tbl_recommend
+        WHERE fk_board_seq = #{fkBoardSeq}
+    </select>
+		<!-- 추천한 사람 이름 조회 -->
+		<select id="selectRecommendMemberNames" parameterType="int" resultType="string">
+		    SELECT m.member_name AS memberName
+		    FROM tbl_recommend r 
+		    JOIN tbl_member m ON r.fk_member_seq = m.member_seq
+		    WHERE r.fk_board_seq = #{fkBoardSeq}
+		</select>
+
+<!-- 댓글 삭제 -->
+<delete id="deleteComment" parameterType="map">
+    DELETE FROM tbl_Comment
+    WHERE comment_seq = #{commentSeq}
+      AND fk_member_seq  = #{fkMemberSeq}
+</delete>
+
+<!-- 대댓글 삭제 -->
+<delete id="deleteReply" parameterType="map">
+    DELETE FROM tbl_Reply
+    WHERE reply_seq = #{replySeq}
+      AND fk_member_seq  = #{fkMemberSeq}
+</delete>
+
+<!--  댓글 수정 -->
+<update id="updateComment" parameterType="com.spring.app.board.domain.CommentDTO">
+    UPDATE tbl_comment
+    SET comment_content = #{commentContent}
+    WHERE comment_seq = #{commentSeq}
+      AND fk_member_seq = #{fkMemberSeq}  <!-- 본인 체크 -->
+</update>
+
+<!--  대댓글 수정  -->
+<update id="updateReply" parameterType="com.spring.app.board.domain.ReplyDTO">
+    UPDATE tbl_reply
+    SET reply_content = #{replyContent}
+    WHERE reply_seq = #{replySeq}
+      AND fk_member_seq = #{fkMemberSeq}  <!-- 본인 체크 -->
+</update>
+
+
+
+
+
+
+</mapper>

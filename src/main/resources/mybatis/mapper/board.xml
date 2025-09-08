@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="board">
+
+  <!-- 글 등록 -->
+  <insert id="insertBoard" parameterType="com.spring.app.board.domain.BoardDTO">
+    INSERT INTO tbl_board (
+      board_seq,
+      fk_board_type_seq,
+      fk_board_category_seq,
+      fk_member_seq,
+      board_title,
+      board_content,
+      board_regdate,
+      board_readcount,
+      board_password,
+      board_file_ori_name,
+      board_file_save_name,
+      board_file_size
+    ) VALUES (
+      board_seq.NEXTVAL,
+      #{fkBoardTypeSeq, jdbcType=NUMERIC},
+      #{fkBoardCategorySeq, jdbcType=NUMERIC},
+      #{fkMemberSeq, jdbcType=NUMERIC},
+      #{boardTitle, jdbcType=VARCHAR},
+      #{boardContent, jdbcType=VARCHAR},
+      SYSDATE,
+      0,
+      #{boardPassword, jdbcType=VARCHAR},
+      #{boardFileOriName, jdbcType=VARCHAR},
+      #{boardFileSaveName, jdbcType=VARCHAR},
+      #{boardFileSize, jdbcType=NUMERIC}
+    )
+  </insert>
+
+  <!-- 게시판 타입 목록 -->
+  <select id="getBoardTypeList" resultType="hashmap">
+    SELECT board_type_seq AS boardTypeSeq,
+           board_type_name AS boardTypeName
+      FROM tbl_board_type
+     ORDER BY board_type_seq
+  </select>
+
+  <!-- 게시판 카테고리 목록 -->
+  <select id="getBoardCategoryList" resultType="hashmap">
+    SELECT board_category_seq AS boardCategorySeq,
+           board_category_name AS boardCategoryName
+      FROM tbl_board_category
+     ORDER BY board_category_seq
+  </select>
+
+  <!-- 게시글 목록(검색) -->
+  <select id="selectBoardList" parameterType="map" resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT
+      b.board_seq AS boardSeq,
+      b.fk_board_type_seq AS fkBoardTypeSeq,
+      b.fk_board_category_seq AS fkBoardCategorySeq,
+      b.fk_member_seq AS fkMemberSeq,
+      b.board_title AS boardTitle,
+      b.board_content AS boardContent,
+      b.board_regdate AS boardRegdate,
+      b.board_readcount AS boardReadcount,
+      b.board_password AS boardPassword,
+      b.board_file_ori_name AS boardFileOriName,
+      b.board_file_save_name AS boardFileSaveName,
+      b.board_file_size AS boardFileSize,
+      m.member_name AS memberName,
+      c.board_category_name AS boardCategoryName,
+      (SELECT COUNT(*) FROM tbl_comment cm WHERE cm.fk_board_seq = b.board_seq) AS commentCount
+    FROM tbl_board b
+    LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+    LEFT JOIN tbl_board_category c ON b.fk_board_category_seq = c.board_category_seq
+    WHERE 1=1
+      <if test="fkBoardTypeSeq != null">
+        AND b.fk_board_type_seq = #{fkBoardTypeSeq}
+      </if>
+      <if test="fkBoardCategorySeq != null and fkBoardCategorySeq != ''">
+        AND b.fk_board_category_seq = #{fkBoardCategorySeq}
+      </if>
+      <if test="searchWord != null and searchWord != ''">
+        <choose>
+          <when test="searchType == 'boardTitle'">
+            AND b.board_title LIKE '%' || #{searchWord} || '%'
+          </when>
+          <when test="searchType == 'boardContent'">
+            AND b.board_content LIKE '%' || #{searchWord} || '%'
+          </when>
+          <when test="searchType == 'titleContent'">
+            AND (b.board_title LIKE '%' || #{searchWord} || '%'
+             OR  b.board_content LIKE '%' || #{searchWord} || '%')
+          </when>
+          <when test="searchType == 'memberName'">
+            AND m.member_name LIKE '%' || #{searchWord} || '%'
+          </when>
+        </choose>
+      </if>
+    ORDER BY b.board_seq DESC
+  </select>
+
+  <!-- 총 개수 -->
+  <select id="getTotalCount" parameterType="map" resultType="int">
+    SELECT COUNT(DISTINCT b.board_seq) AS totalCount
+    FROM tbl_board b
+    LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+    WHERE 1=1
+      <if test="fkBoardTypeSeq != null">
+        AND b.fk_board_type_seq = #{fkBoardTypeSeq, jdbcType=NUMERIC}
+      </if>
+      <if test="fkBoardCategorySeq != null and fkBoardCategorySeq != ''">
+        AND b.fk_board_category_seq = #{fkBoardCategorySeq, jdbcType=NUMERIC}
+      </if>
+      <if test="fkDepartmentSeq != null and fkDepartmentSeq != ''">
+        AND m.fk_department_seq = #{fkDepartmentSeq, jdbcType=NUMERIC}
+      </if>
+      <if test="searchWord != null and searchWord != ''">
+        <choose>
+          <when test="searchType == 'boardTitle'">
+            AND b.board_title LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+          </when>
+          <when test="searchType == 'boardContent'">
+            AND b.board_content LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+          </when>
+          <when test="searchType == 'titleContent'">
+            AND (b.board_title LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+             OR  b.board_content LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%')
+          </when>
+          <when test="searchType == 'memberName'">
+            AND m.member_name LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+          </when>
+        </choose>
+      </if>
+</select>
+
+  <!-- 페이징 목록 -->
+  <select id="boardListSearch_withPaging" parameterType="map"
+          resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT * FROM (
+      SELECT ROWNUM AS rno, V.*
+      FROM (
+        SELECT
+          b.board_seq AS boardSeq,
+          b.fk_board_type_seq AS fkBoardTypeSeq,
+          b.fk_board_category_seq AS fkBoardCategorySeq,
+          b.fk_member_seq AS fkMemberSeq,
+          b.board_title AS boardTitle,
+          b.board_content AS boardContent,
+          b.board_regdate AS boardRegdate,
+          b.board_readcount AS boardReadcount,
+          b.board_file_ori_name AS boardFileOriName,
+          b.board_file_save_name AS boardFileSaveName,
+          b.board_file_size AS boardFileSize,
+          m.member_name AS memberName,
+          c.board_category_name AS boardCategoryName,
+          (SELECT COUNT(*) FROM tbl_comment cm WHERE cm.fk_board_seq = b.board_seq) AS commentCount
+        FROM tbl_board b
+        LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+        LEFT JOIN tbl_board_category c ON b.fk_board_category_seq = c.board_category_seq
+        WHERE 1=1
+          <if test="fkBoardTypeSeq != null">
+            AND b.fk_board_type_seq = #{fkBoardTypeSeq, jdbcType=NUMERIC}
+          </if>
+          <if test="fkBoardCategorySeq != null and fkBoardCategorySeq != ''">
+            AND b.fk_board_category_seq = #{fkBoardCategorySeq, jdbcType=NUMERIC}
+          </if>
+          <if test="fkDepartmentSeq != null and fkDepartmentSeq != ''">
+            AND m.fk_department_seq = #{fkDepartmentSeq, jdbcType=NUMERIC}
+          </if>
+          <if test="searchWord != null and searchWord != ''">
+            <choose>
+              <when test="searchType == 'boardTitle'">
+                AND b.board_title LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+              </when>
+              <when test="searchType == 'boardContent'">
+                AND b.board_content LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+              </when>
+              <when test="searchType == 'titleContent'">
+                AND (b.board_title LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+                 OR  b.board_content LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%')
+              </when>
+              <when test="searchType == 'memberName'">
+                AND m.member_name LIKE '%' || #{searchWord, jdbcType=VARCHAR} || '%'
+              </when>
+            </choose>
+          </if>
+        ORDER BY b.board_seq DESC
+      ) V
+    )
+    WHERE rno BETWEEN #{startRno, jdbcType=NUMERIC} AND #{endRno, jdbcType=NUMERIC}
+  </select>
+
+  <!-- 조회수 증가 -->
+  <update id="updateReadCount" parameterType="string">
+    UPDATE tbl_board
+       SET board_readcount = board_readcount + 1
+     WHERE board_seq = #{boardSeq}
+  </update>
+
+  <!-- 상세 -->
+ <select id="getBoardDetail" parameterType="string"
+        resultType="com.spring.app.board.domain.BoardDTO">
+  SELECT
+    b.board_seq AS boardSeq,
+    b.fk_board_type_seq AS fkBoardTypeSeq,
+    b.fk_board_category_seq AS fkBoardCategorySeq,
+    b.fk_member_seq AS fkMemberSeq,
+    b.board_title AS boardTitle,
+    b.board_content AS boardContent,
+    b.board_regdate AS boardRegdate,
+    b.board_readcount AS boardReadcount,
+    b.board_password AS boardPassword,
+    b.board_file_ori_name AS boardFileOriName,
+    b.board_file_save_name AS boardFileSaveName,
+    b.board_file_size AS boardFileSize,
+    m.member_name AS memberName,
+    m.member_userid AS memberUserid, <!-- 추가 -->
+    c.board_category_name AS boardCategoryName
+  FROM tbl_board b
+  LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+  LEFT JOIN tbl_board_category c ON b.fk_board_category_seq = c.board_category_seq
+  WHERE b.board_seq = #{boardSeq}
+</select>
+  <!-- 부서명 조회 -->
+  <select id="getDepartmentNameBySeq" parameterType="int" resultType="string">
+    SELECT department_name
+      FROM tbl_department
+     WHERE department_seq = #{fkDepartmentSeq}
+  </select>
+
+  <!-- 이전글/다음글 -->
+  <select id="getPrevBoard" parameterType="map"
+        resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT b.board_seq AS boardSeq, b.board_title AS boardTitle
+    FROM tbl_board b
+    LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+    WHERE b.board_seq = (
+        SELECT MAX(board_seq)
+        FROM tbl_board
+        WHERE board_seq &lt; #{boardSeq}
+        <if test="fkBoardTypeSeq != null"> 
+            AND fk_board_type_seq = #{fkBoardTypeSeq}
+        </if>
+        <if test="fkDepartmentSeq != null"> 
+            AND m.fk_department_seq = #{fkDepartmentSeq}
+        </if>
+    )
+</select>
+
+<select id="getNextBoard" parameterType="map"
+        resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT b.board_seq AS boardSeq, b.board_title AS boardTitle
+    FROM tbl_board b
+    LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+    WHERE b.board_seq = (
+        SELECT MIN(board_seq)
+        FROM tbl_board
+        WHERE board_seq &gt; #{boardSeq}
+        <if test="fkBoardTypeSeq != null"> 
+            AND fk_board_type_seq = #{fkBoardTypeSeq}
+        </if>
+        <if test="fkDepartmentSeq != null"> 
+            AND m.fk_department_seq = #{fkDepartmentSeq}
+        </if>
+    )
+</select>
+  
+
+
+  <!-- 글 수정 -->
+  <update id="updateBoard" parameterType="com.spring.app.board.domain.BoardDTO">
+    UPDATE tbl_board
+       SET fk_board_type_seq     = #{fkBoardTypeSeq, jdbcType=NUMERIC},
+           fk_board_category_seq = #{fkBoardCategorySeq, jdbcType=NUMERIC},
+           board_title           = #{boardTitle, jdbcType=VARCHAR},
+           board_content         = #{boardContent, jdbcType=VARCHAR},
+           board_file_ori_name   = #{boardFileOriName, jdbcType=VARCHAR},
+           board_file_save_name  = #{boardFileSaveName, jdbcType=VARCHAR},
+           board_file_size       = #{boardFileSize, jdbcType=NUMERIC}
+     WHERE board_seq = #{boardSeq, jdbcType=NUMERIC}
+  </update>
+
+  <!-- 글 삭제 -->
+  <delete id="delete" parameterType="string">
+    DELETE FROM tbl_board WHERE board_seq = #{boardSeq}
+  </delete>
+
+  <!-- 공지(카테고리=0) 최근 N개 -->
+  <select id="selectRecentNoticesFromTypes" parameterType="map"
+          resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT * FROM (
+      SELECT
+        b.board_seq             AS boardSeq,
+        b.fk_board_type_seq     AS fkBoardTypeSeq,
+        b.fk_member_seq         AS fkMemberSeq,
+        b.board_title           AS boardTitle,
+        b.board_regdate         AS boardRegdate,
+        b.board_readcount       AS boardReadcount,
+        b.fk_board_category_seq AS fkBoardCategorySeq,
+        m.member_name           AS memberName,
+        c.board_category_name   AS boardCategoryName,
+        CASE b.fk_board_type_seq
+          WHEN 0 THEN '사내게시판'
+          WHEN 1 THEN '부서게시판'
+          ELSE '게시판'
+        END AS boardTypeName
+      FROM tbl_board b
+      JOIN tbl_member m ON m.member_seq = b.fk_member_seq
+      LEFT JOIN tbl_board_category c ON c.board_category_seq = b.fk_board_category_seq
+      WHERE b.fk_board_category_seq = 0
+        AND b.fk_board_type_seq IN
+        <foreach collection="typeSeqs" item="t" open="(" separator="," close=")">
+          #{t}
+        </foreach>
+      ORDER BY b.board_regdate DESC
+    )
+    WHERE ROWNUM &lt;= #{limit}
+  </select>
+
+	<select id="selectWeeklyPopularBoard" parameterType="map" resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT *
+FROM (
+    SELECT 
+        b.board_seq       AS boardSeq,
+        b.board_title     AS boardTitle,
+        b.board_readcount AS boardReadcount,
+        COALESCE(r.recommend_count,0) AS recommendCount,
+        b.board_regdate   AS boardRegdate
+    FROM tbl_board b
+    LEFT JOIN (
+        SELECT fk_board_seq, COUNT(*) AS recommend_count
+        FROM tbl_recommend
+        GROUP BY fk_board_seq
+    ) r ON b.board_seq = r.fk_board_seq
+    LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+    WHERE b.board_regdate >= TRUNC(SYSDATE,'IW')
+      AND b.fk_board_type_seq = #{fkBoardTypeSeq}
+      <if test="fkDepartmentSeq != null">
+         AND m.fk_department_seq = #{fkDepartmentSeq}
+      </if>
+    ORDER BY COALESCE(r.recommend_count,0) DESC
+)
+WHERE ROWNUM &lt;= 5
+</select>
+	
+	
+	
+<!--  index 공지사항 표시 (로그인유저 기준) -->	
+	<select id="selectRecentNotices" parameterType="map" resultType="com.spring.app.board.domain.BoardDTO">
+    SELECT *
+    FROM (
+        SELECT 
+            b.board_seq        AS boardSeq,
+            b.board_title      AS boardTitle,
+            b.board_regdate    AS boardRegdate,
+            b.board_readcount  AS boardReadcount,
+            COALESCE(r.recommend_count, 0) AS recommendCount,
+            m.member_name      AS memberName,
+            b.fk_board_type_seq AS fkBoardTypeSeq
+        FROM tbl_board b
+        LEFT JOIN (
+            SELECT fk_board_seq, COUNT(*) AS recommend_count
+            FROM tbl_recommend
+            GROUP BY fk_board_seq
+        ) r ON b.board_seq = r.fk_board_seq
+        LEFT JOIN tbl_member m ON b.fk_member_seq = m.member_seq
+        WHERE 
+            (b.fk_board_type_seq = 0
+             OR m.fk_department_seq = #{userDeptSeq})
+        ORDER BY b.board_regdate DESC
+    )
+    WHERE ROWNUM &lt;= #{limit}
+</select>
+	
+	
+	
+</mapper>

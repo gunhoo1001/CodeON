@@ -1,0 +1,111 @@
+spring: # 주의할 점은 내용작성시 들여쓰기 내어쓰기를 반드시 꼭 지켜야 한다. 
+  application:
+    name: CodeON
+
+  profiles: #실행환경(local(로컬),dev(개발),real(운영))  https://bepoz-study-diary.tistory.com/371 참조
+    active: local 
+  
+  mvc:
+    view: #뷰 리졸버. view 경로 및 확장자 지정하기. JSP를 뷰로 사용한다.  
+      prefix: /WEB-INF/views/
+      suffix: .jsp
+      
+  datasource: #DB 접속
+    driver-class-name: oracle.jdbc.OracleDriver
+
+    jdbc-url: jdbc:oracle:thin:@127.0.0.1:1521:xe      # SID 방식
+    #url: jdbc:oracle:thin:@//127.0.0.1:1521/xe  # oracle 12c 이후부터 PDB 사용시는 이렇게 하라고 함.
+    username: final_orauser3
+    password: seven
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari: #커넥션풀 
+      #driver-class-name: oracle.jdbc.OracleDriver
+      #jdbc-url: jdbc:oracle:thin:@211.63.89.70:1521:xe
+      #username: jspbegin_user
+      #password: gclass
+      minimum-idle: 5        # 최소 유휴(쓰지 않고 놀리는 것) 커넥션 (5개)
+      maximum-pool-size: 10  # 최대 커넥션 개수 설정 (10개). pool 의 커넥션 수가 옵션 값(10개)에 도달하게 되면 idle 인 상태는 존재하지 않게 된다.  
+      idle-timeout: 30000    # 30초 후 연결 실패시 예외 발생 
+      max-lifetime: 1800000  # 커넥션 풀에서 살아있을 수 있는 커넥션의 최대 수명시간 1,800초(30분). 30분 이상 유지된 커넥션은 제거  
+      connection-timeout: 30000 # 클라이언트가 pool에 connection을 요청하는데 기다리는 최대시간을 설정 30초
+      
+  data: #=== (몽고DB #웹채팅관련8) === 
+    mongodb:
+      uri: mongodb://devuser:qwer1234$@127.0.0.1:27017/mydb
+  
+  jpa:
+    database-platform: org.hibernate.dialect.OracleDialect      # Spring Boot 3.2.1 버전 이후 부터는 JPA Provider가 적절한 Dialect 를 찾아내게 해주므로, 즉 설정을 명시하지 않아도 Oracle을 자동 인식해주므로 이를 명시적으로 지정하게 되면 오류가 발생하게 된다.  
+    #database-platform: org.hibernate.dialect.Oracle12cDialect  # Spring Boot 3.2.1 버전 이전까지 사용. 공식 18c 버전은 없음. oracle 12C 이후부터 통용됨.
+    #database-platform: org.hibernate.dialect.Oracle10gDialect  # Spring Boot 3.2.1 버전 이전까지 사용. oracle 11g 버전에서는 database-platform: org.hibernate.dialect.Oracle10gDialect
+    
+    hibernate:
+      ddl-auto: none
+     #ddl-auto: create  # 테이블이나 시퀀스 자동 생성이다. 테이블이나 시퀀스가 존재하지 않는 경우 최초실행시 에러발생함. 무시해도 됨. 테이블을 생성을 해야할 맨처음에만 create 하고 테이블과 관련된 DDL 작업이 없을 때는 none 으로 변경하자.   
+              # create      -> 기존 테이블이나 시퀀스를 drop 한 후 다시 생성한다.                 [개발초기단계]
+              # create-drop -> SessionFactory 가 시작될 때 테이블이나 시퀀스를 drop 및 생성한다.  [개발초기단계]
+              #                SessionFactory 가 종료될 때 테이블을 테이블이나 시퀀스를 drop 한다. 
+              #                in-memory DB인 H2 Database 의 기본값이다. 
+              # update      -> 테이블의 내용이 변경된 경우 자동으로 변경된 것만 DDL 을 실행해준다.     [개발초기단계]  
+              # validate    -> 엔티티와 테이블이 정상 매핑되었는지만 확인.                         [개발초기단계] 또는 [테스터서버]
+              # none        -> 아무것도 실행하지 않는다.                                       [배포운영단계]          
+              # !!!! 실제 배포운영시에는 ddl-auto: none 으로만 해야 한다. 
+              # !!!! 실제 배포운영시에는 절대로 crate, create-drop, update, validate 를 사용하면 안된다. !!!! 
+     #naming:
+       #physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        # JPA 엔티티 클래스의 필드 이름을 실제 DB 컬럼명 매핑 방식으로 지정함.
+        # Spring Boot는 기본적으로 필드명에 카멜 표기를 사용하면 DB 컬럼명을 스네이크 표기(언더스코어)로 변환함. (ex. 필드명 userName → 컬럼명 user_name).
+        # 위와 같이 자동 변환을 해주는 기본 설정을 사용하지 않고, 필드명을 그대로 DB 컬럼명으로 사용하겠다는 설정임.
+        # 예를 들어, 필드명 userName 은 DB 컬럼명도 userName 그대로 사용하겠다는 말임.
+
+    properties:
+      hibernate:
+        '[show_sql]': true         
+        '[format_sql]': true
+        '[use_sql_comments]': true
+      # '[show_sql]': true 는 사용되는 SQL문(JPQL)을 콘솔에 출력 해줌 
+      # '[format_sql]': true 는 가독성이 좋도록 1줄로 되어진 SQL문(JPQL)을 탭이나 줄바꿈을 하여 보여줌 
+      # '[use_sql_comments]': true 는 사용자 주석문을 보여줌 
+    
+    open-in-view: false
+
+  messages: #메시지(파일이 여러개일 경우 ,로 구분)
+    basename: messages.validation
+    encoding: UTF-8
+    
+  devtools: #View reload
+    livereload:
+      enabled: true
+    
+    restart: #컨트롤러, 모델단이 바뀌었을 때 프로젝트 재시작(reload) 설정 (정확히는 classpath에 있는 모든 파일)
+      enabled: true #재시작(reload) 함
+
+  servlet:
+    multipart:
+      max-file-size: 10MB     # 파일 업로드 용량제한 설정하기. 파일 업로드 용량을 설정하지 않으면 기본값은 1048576 bytes (1MB)으로 된다.
+      max-request-size: 12MB  # 파일 및 파일을 제외한 input 태그값 업로드 용량제한 설정하기. 업로드 용량을 설정하지 않으면 기본값은 1048576 bytes (1MB)으로 된다.
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+
+mybatis: #mybatis 설정
+ 
+ #type-aliases-package: com.spring.app.**.domain 
+ #mapper-locations: com/spring/app/**/mapper/*.xml   #src/main/java 아래 패키지속에 매퍼파일을 만드는 경우 
+  mapper-locations: mybatis/mapper/**/*.xml          #src/main/resources 아래 폴더속에 매퍼파일을 만드는 경우
+  
+logging: #로그 지정
+  level:
+    #root: error
+    '[com.spring.app]': debug 
+    #com.zaxxer.hikari.HikariConfig: DEBUG
+    #com.zaxxer.hikari: TRACE 
+    
+server:
+  port: 9090
+  servlet:
+    #context-path: /CodeON
+    encoding:
+      charset: UTF-8
+      enabled: true #http 인코딩 지원을 활성화할지 여부
+      force: true #post 방식으로 전송했을때 한글데이터가 안깨지도록 함

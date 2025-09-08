@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ==== mapper 기본설정 ==== -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- SqlSessionTemplate(myBatis 3.0 이전 버전)을 사용하지 않는 Mapper Interface(myBatis 3.0 이상 버전 부터 사용가능함) 예제 ==== --> 
+<!--      매퍼.xml 파일이 DAO인터페이스를 구현하는 DAO클래스의 역할을 대신해준다. 
+          !!!!!! namespace 는 DAO인터페이스명으로 해야 한다. !!!!!!  --> 
+
+<mapper namespace="com.spring.app.mail.model.MailDAO">
+
+	<!-- 시퀀스 가져오기 -->
+	<select id="getEmailSeq" resultType="long">
+	    SELECT email_seq.NEXTVAL FROM dual
+	</select>
+	
+	<!-- 첨부파일 없는 메일 저장 -->
+	<insert id="insertMail">
+	    INSERT INTO TBL_EMAIL (
+	        email_seq,
+	        send_member_email,
+	        receive_member_email,
+	        email_title,
+	        email_content,
+	        email_regdate
+	    ) VALUES (
+	        #{emailSeq},
+	        #{sendMemberEmail},
+	        #{receiveMemberEmail},
+	        #{emailTitle},
+	        #{emailContent},
+	        sysdate
+	    )
+	</insert>
+	
+	<!-- 첨부파일 있는 메일 저장 -->
+	<insert id="insertMail_withFile">
+	    INSERT INTO TBL_EMAIL (
+	        email_seq,
+	        send_member_email,
+	        receive_member_email,
+	        email_title,
+	        email_content,
+	        email_regdate,
+	        email_filename,
+	        email_orgFilename,
+	        email_filesize
+	    ) VALUES (
+	        #{emailSeq},
+	        #{sendMemberEmail},
+	        #{receiveMemberEmail},
+	        #{emailTitle},
+	        #{emailContent},
+	        sysdate,
+	        #{emailFilename},
+	        #{emailOrgFilename},
+	        #{emailFilesize}
+	    )
+	</insert>
+	
+	<!-- 발신자/수신자 상태 저장 -->
+	<insert id="insertMailUser" parameterType="MailDTO">
+	    INSERT ALL
+	    <foreach collection="userStatusList" item="status">
+	        INTO TBL_EMAIL_USER_STATUS (
+	            email_seq,
+	            member_email,
+	            read_status,
+	            important_status
+	        ) VALUES (
+	            #{emailSeq},
+	            #{status.memberEmail},
+	            #{status.readStatus},
+	            #{status.importantStatus}
+	        )
+	    </foreach>
+	    SELECT * FROM dual
+	</insert>
+   
+   
+	<select id="getTotalCount" resultType="int" parameterType="hashmap">
+	    SELECT COUNT(*)
+	    FROM tbl_email_user_status us
+	    JOIN tbl_email e ON us.email_seq = e.email_seq
+	    WHERE us.member_email = #{loginUserEmail}
+	    
+	    <!-- 검색어 조건 -->
+	    <if test="searchWord != null and searchWord != ''">
+	        AND LOWER(e.email_title) LIKE '%' || LOWER(#{searchWord}) || '%'
+	    </if>
+	
+	    <!-- 필터 조건 -->
+	    <if test="filter != null and filter == 'unread'">
+	        AND us.read_status = 0
+	    </if>
+	    <if test="filter != null and filter == 'important'">
+	        AND us.important_status = 1
+	    </if>
+	    <if test="filter != null and filter == 'attach'">
+	        AND e.email_filename IS NOT NULL
+	        OR e.email_filename != ''
+	    </if>
+	</select>
+
+	<resultMap id="MailMap" type="MailDTO">
+	    <result property="emailSeq" column="EMAIL_SEQ" javaType="String" />
+	    <result property="emailTitle" column="EMAIL_TITLE" javaType="String" />
+	    <result property="sendMemberEmail" column="SEND_MEMBER_EMAIL" javaType="String" />
+	    <result property="receiveMemberEmail" column="RECEIVE_MEMBER_EMAIL" javaType="String" />
+	    <result property="emailRegdate" column="EMAIL_REGDATE" javaType="String" />
+	    <result property="emailFilename" column="EMAIL_FILENAME" javaType="String" />
+	    <result property="readStatus" column="READ_STATUS" javaType="String" />
+	    <result property="importantStatus" column="IMPORTANT_STATUS" javaType="String" />
+	</resultMap>
+	
+	<select id="mailListSearch_withPaging" parameterType="hashmap" resultMap="MailMap">
+	    SELECT e.email_seq,
+	           e.email_title,
+	           e.send_member_email,
+	           e.receive_member_email,
+	           e.email_regdate,
+	           e.email_filename,
+	           us.read_status,
+	           us.important_status
+	    FROM tbl_email e
+	    LEFT JOIN tbl_email_user_status us
+	           ON e.email_seq = us.email_seq
+	          AND us.member_email = #{loginUserEmail}
+	    WHERE 1=1
+	      AND ( e.send_member_email = #{loginUserEmail}
+	         OR ',' || e.receive_member_email || ',' LIKE '%,' || #{loginUserEmail} || ',%' )
+	
+	      <if test="searchWord != null and searchWord != ''">
+	        AND LOWER(e.email_title) LIKE '%' || LOWER(#{searchWord}) || '%'
+	      </if>
+	
+	      <choose>
+	        <when test="filter == 'unread'">
+	            AND us.read_status = '0'
+	        </when>
+	        <when test="filter == 'important'">
+	            AND us.important_status = '1'
+	        </when>
+	        <when test="filter == 'attach'">
+	            AND e.email_filename IS NOT NULL
+	        </when>
+	      </choose>
+	
+	    ORDER BY e.email_regdate DESC
+	    OFFSET ((TO_NUMBER(#{currentShowPageNo}) - 1) * 10) ROWS
+	    FETCH NEXT 10 ROWS ONLY
+	</select>
+
+
+	
+	<select id="MailUserList" parameterType="string" resultType="MailUserStatusDTO">
+	    SELECT *
+	    FROM tbl_email_user_status
+	    WHERE email_seq = #{emailSeq}
+	</select>
+	
+
+	
+	<!-- 발신메일 총 개수 -->
+	<select id="getSentMailTotalCount" parameterType="HashMap" resultType="int">
+	    SELECT COUNT(*)
+	    FROM tbl_email e
+	    JOIN tbl_email_user_status u
+	      ON e.email_seq = u.email_seq
+	    WHERE u.member_email = #{loginUserEmail}
+	      and u.member_email = e.send_member_email
+	    <if test="searchWord != null and searchWord != ''">
+	        AND LOWER(e.email_title) LIKE '%' || LOWER(#{searchWord}) || '%'
+	    </if>
+	</select>
+	
+	<!-- 발신메일 페이징 리스트 -->
+	<select id="getSentMailListWithPaging" parameterType="HashMap" resultMap="MailMap">
+	    SELECT e.email_seq,
+	           e.email_title,
+	           e.send_member_email,
+	           e.receive_member_email,
+	           e.email_regdate,
+	           e.email_filename,
+	           u.read_status, 
+	           u.important_status
+	    FROM tbl_email e
+	    JOIN tbl_email_user_status u
+	      ON e.email_seq = u.email_seq
+	    WHERE u.member_email = #{loginUserEmail}
+	    and u.member_email = e.send_member_email
+	    <if test="searchWord != null and searchWord != ''">
+	        AND LOWER(e.email_title) LIKE '%' || LOWER(#{searchWord}) || '%'
+	    </if>
+	    ORDER BY e.email_regdate DESC
+	    OFFSET ((TO_NUMBER(#{currentShowPageNo}) - 1) * 10) ROWS
+	    FETCH NEXT 10 ROWS ONLY
+	</select>
+	
+	<!-- 수신메일 총 개수 -->
+	<select id="getReceivedMailTotalCount" parameterType="HashMap" resultType="int">
+	    SELECT COUNT(*)
+	    FROM tbl_email e
+	    JOIN tbl_email_user_status u
+	      ON e.email_seq = u.email_seq
+	    WHERE u.member_email = #{loginUserEmail}
+	      AND u.member_email = e.receive_member_email
+	    <if test="searchWord != null and searchWord != ''">
+	        AND LOWER(e.email_title) LIKE '%' || LOWER(#{searchWord}) || '%'
+	    </if>
+	</select>
+	
+	<!-- 수신메일 페이징 리스트 -->
+	<select id="getReceivedMailListWithPaging" parameterType="HashMap" resultMap="MailMap">
+	    SELECT e.email_seq,
+	           e.email_title,
+	           e.send_member_email,
+	           e.receive_member_email,
+	           e.email_regdate,
+	           e.email_filename,
+	           u.read_status, 
+	           u.important_status
+	    FROM tbl_email e
+	    JOIN tbl_email_user_status u
+	      ON e.email_seq = u.email_seq
+	    WHERE u.member_email = #{loginUserEmail} 
+	    and u.member_email = e.receive_member_email
+	    <if test="searchWord != null and searchWord != ''">
+	        AND LOWER(e.email_title) LIKE '%' || LOWER(#{searchWord}) || '%'
+	    </if>
+	    ORDER BY e.email_regdate DESC
+	    OFFSET ((TO_NUMBER(#{currentShowPageNo}) - 1) * 10) ROWS
+	    FETCH NEXT 10 ROWS ONLY
+	</select>
+
+	
+	
+	<!-- 중요 표시 변경 -->
+	<update id="updateImportant" parameterType="map">
+	    UPDATE tbl_email_user_status
+	    SET important_status = #{importantStatus}
+	    WHERE email_seq = #{emailSeq}
+	      AND member_email = #{memberEmail}
+	</update>
+	
+	<!-- 읽음 상태 변경 -->
+	<update id="updateReadStatus" parameterType="map">
+	    UPDATE tbl_email_user_status
+	    SET read_status = #{readStatus}
+	    WHERE email_seq = #{emailSeq}
+	      AND member_email = #{memberEmail}
+	</update>
+	
+	<select id="selectOne" parameterType="map" resultType="MailDTO">
+		select *
+		from tbl_email
+		WHERE email_seq = #{emailSeq}
+	</select>
+	
+	<select id="getCount" parameterType="String" resultType="String">
+	    SELECT COUNT(*)
+	    FROM tbl_email_user_status
+	    WHERE member_email = #{loginUserEmail}
+	      AND read_status = 0
+	</select>
+
+	
+	<select id="totalCount" resultType="String">
+		select count(*)
+		from tbl_email_user_status
+		where member_email = #{loginUserEmail}
+	</select>
+	
+	<!-- === 선택한 메일 삭제 === -->
+	<delete id="deleteMails" parameterType="java.util.List">
+	    DELETE FROM tbl_email
+	    WHERE email_seq IN
+	    <foreach collection="list" item="emailSeq" open="(" separator="," close=")">
+	        #{emailSeq}
+	    </foreach>
+	</delete>
+	
+	<!-- 메일유저 삭제 -->
+	<delete id="deleteByEmailSeqList" parameterType="java.util.List">
+	    DELETE FROM tbl_email_user_status
+	    WHERE email_seq IN
+	    <foreach collection="list" item="emailSeq" open="(" separator="," close=")">
+	        #{emailSeq}
+	    </foreach>
+	</delete>
+		
+	<!-- === 한 메일 메일 삭제 === -->
+	<delete id="deleteMail" parameterType="String">
+	    DELETE FROM tbl_email
+	    WHERE email_seq = #{emailSeq}
+	</delete>
+	
+	 <!-- 스케줄러 발송 대상 조회 (예: 안읽음, 중요 표시 없음) -->
+    <select id="selectScheduledUsers" resultType="com.spring.app.mail.domain.MailUserStatusDTO">
+        SELECT member_email
+        FROM TBL_EMAIL_USER_STATUS
+        WHERE read_status = '0'
+        AND important_status = '0'
+    </select>
+
+    <!-- 한 메일 자식 테이블 삭제 -->
+    <delete id="deleteByEmailSeq" parameterType="string">
+        DELETE FROM tbl_email_user_status
+        WHERE email_seq = #{emailSeq}
+    </delete>
+
+</mapper>

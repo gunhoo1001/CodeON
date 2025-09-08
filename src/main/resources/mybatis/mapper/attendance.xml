@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="attendance">
+
+  <resultMap id="AttendanceMap" type="com.spring.app.attendance.domain.AttendanceRecord">
+    <id     column="ATTENDANCE_SEQ" property="attendanceSeq"/>
+    <result column="FK_MEMBER_SEQ"  property="memberSeq"/>
+    <result column="WORK_DATE"      property="workDate"/>
+    <result column="START_TIME"     property="startTime"/>
+    <result column="END_TIME"       property="endTime"/>
+    <result column="OVERTIME"       property="overtime"/>
+  </resultMap>
+
+  <!-- 특정 일자 1건 조회 -->
+  <select id="selectByMemberAndDate" resultMap="AttendanceMap">
+    SELECT ATTENDANCE_SEQ, FK_MEMBER_SEQ, WORK_DATE, START_TIME, END_TIME, OVERTIME
+      FROM TBL_ATTENDANCE
+     WHERE FK_MEMBER_SEQ = #{memberSeq}
+       AND WORK_DATE     = #{workDate}
+  </select>
+
+  <!-- 출근(신규행) -->
+  <insert id="insertStart">
+    INSERT INTO TBL_ATTENDANCE
+      (ATTENDANCE_SEQ, FK_MEMBER_SEQ, WORK_DATE, START_TIME, OVERTIME)
+    VALUES
+      (SEQ_ATTENDANCE.NEXTVAL, #{memberSeq}, #{workDate}, SYSTIMESTAMP, 0)
+  </insert>
+
+  <!-- 출근(이미 존재 시 START_TIME 비어있으면만 채우기) -->
+  <update id="updateStartIfNull">
+    UPDATE TBL_ATTENDANCE
+       SET START_TIME = COALESCE(START_TIME, SYSTIMESTAMP)
+     WHERE FK_MEMBER_SEQ = #{memberSeq}
+       AND WORK_DATE     = #{workDate}
+  </update>
+
+  <update id="updateEnd">
+	  UPDATE TBL_ATTENDANCE
+	     SET END_TIME = #{endTime},
+	         OVERTIME = #{overtime}
+	   WHERE FK_MEMBER_SEQ = #{memberSeq}
+	     AND WORK_DATE     = #{workDate}
+	     AND END_TIME IS NULL
+</update>
+
+  <!-- 월간 상세 목록 -->
+  <select id="selectMonthly" resultMap="AttendanceMap">
+    SELECT ATTENDANCE_SEQ, FK_MEMBER_SEQ, WORK_DATE, START_TIME, END_TIME, OVERTIME
+      FROM TBL_ATTENDANCE
+     WHERE FK_MEMBER_SEQ = #{memberSeq}
+       AND WORK_DATE BETWEEN #{start} AND #{end}
+     ORDER BY WORK_DATE ASC
+  </select>
+
+  <!-- 월간 요약
+       TOTAL_MINUTES: 4h 초과 시 60분 차감 반영한 "조정 총근무분"의 합
+       TOTAL_OVERTIME: 조정 총근무분 기준 8h 초과분 합(= 재계산; 저장값과 일치하도록)
+  -->
+  <select id="selectMonthlySummary" parameterType="map" resultType="map">
+	  SELECT
+	    NVL(SUM(
+	      CASE
+	        WHEN START_TIME IS NOT NULL AND END_TIME IS NOT NULL THEN
+	          /* 조정 총근무분 = 원시 - (원시>240 ? 60 : 0) */
+	          GREATEST(
+	            ROUND((CAST(END_TIME AS DATE) - CAST(START_TIME AS DATE)) * 24 * 60)
+	            - CASE
+	                WHEN ROUND((CAST(END_TIME AS DATE) - CAST(START_TIME AS DATE)) * 24 * 60) > 240 THEN 60
+	                ELSE 0
+	              END,
+	            0
+	          )
+	        ELSE 0
+	      END
+	    ), 0) AS TOTAL_MINUTES,
+	    NVL(SUM(
+	      CASE WHEN START_TIME IS NOT NULL AND END_TIME IS NOT NULL THEN 1 ELSE 0 END
+	    ), 0) AS WORK_DAYS,
+	    NVL(SUM(
+	      CASE
+	        WHEN START_TIME IS NOT NULL AND END_TIME IS NOT NULL THEN
+	          /* 연장근무 = 조정근무분 - 480 이상만 */
+	          GREATEST(
+	            GREATEST(
+	              ROUND((CAST(END_TIME AS DATE) - CAST(START_TIME AS DATE)) * 24 * 60)
+	              - CASE
+	                  WHEN ROUND((CAST(END_TIME AS DATE) - CAST(START_TIME AS DATE)) * 24 * 60) > 240 THEN 60
+	                  ELSE 0
+	                END,
+	              0
+	            ) - 480,
+	            0
+	          )
+	        ELSE 0
+	      END
+	    ), 0) AS TOTAL_OVERTIME
+	  FROM TBL_ATTENDANCE
+	  WHERE FK_MEMBER_SEQ = #{memberSeq}
+	    AND WORK_DATE BETWEEN #{start} AND #{end}
+</select>
+
+
+  <!-- 연차 단건 조회 -->
+  <resultMap id="AnnualLeaveDtoMap" type="com.spring.app.domain.AnnualLeaveDTO">
+    <result column="MEMBER_SEQ"       property="memberSeq"/>
+    <result column="TOTAL_LEAVE"      property="totalLeave"/>
+    <result column="USED_LEAVE"       property="usedLeave"/>
+    <result column="REMAINING_LEAVE"  property="remainingLeave"/>
+  </resultMap>
+
+  <select id="selectAnnualLeaveByMemberSeq"
+          parameterType="int"
+          resultMap="AnnualLeaveDtoMap">
+    SELECT
+      MEMBER_SEQ,
+      NVL(TOTAL_LEAVE, 0)      AS TOTAL_LEAVE,
+      NVL(USED_LEAVE, 0)       AS USED_LEAVE,
+      NVL(REMAINING_LEAVE, 0)  AS REMAINING_LEAVE
+    FROM TBL_ANNUAL_LEAVE
+    WHERE MEMBER_SEQ = #{memberSeq}
+  </select>
+
+</mapper>
